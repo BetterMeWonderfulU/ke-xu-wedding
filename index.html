@@ -804,9 +804,9 @@ function startMusic() {
 
     // Soft limiter to prevent clipping when layered voices peak
     const limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.value = -8;
+    limiter.threshold.value = -5;
     limiter.knee.value = 8;
-    limiter.ratio.value = 12;
+    limiter.ratio.value = 8;
     limiter.attack.value = 0.003;
     limiter.release.value = 0.18;
     limiter.connect(audioCtx.destination);
@@ -815,19 +815,19 @@ function startMusic() {
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0;
     masterGain.connect(limiter);
-    masterGain.gain.linearRampToValueAtTime(0.62, audioCtx.currentTime + 2.5);
+    masterGain.gain.linearRampToValueAtTime(0.88, audioCtx.currentTime + 2.5);
 
     // Reverb send (synthesized impulse)
     reverbConvolver = audioCtx.createConvolver();
-    reverbConvolver.buffer = createReverbIR(audioCtx, 2.4, 2.0);
+    reverbConvolver.buffer = createReverbIR(audioCtx, 1.6, 2.6);
     reverbGain = audioCtx.createGain();
-    reverbGain.gain.value = 0.55;
+    reverbGain.gain.value = 0.40;
     reverbConvolver.connect(reverbGain);
     reverbGain.connect(masterGain);
 
     // Dry path
     dryGain = audioCtx.createGain();
-    dryGain.gain.value = 0.85;
+    dryGain.gain.value = 1.00;
     dryGain.connect(masterGain);
 
     /* === Concerto Pour Une Voix · A minor · 4/4 · 78 BPM ===
@@ -867,7 +867,7 @@ function startMusic() {
     /* Piano-like voice (FM-ish): sine carrier + 2x-freq modulator for
        a bell-like shimmer typical of Clayderman piano, plus 2nd
        harmonic, short attack and exponential decay. */
-    function playPiano(time, freq, dur = 1.4, vol = 0.42) {
+    function playPiano(time, freq, dur = 1.4, vol = 0.50) {
       const g = audioCtx.createGain();
       g.gain.setValueAtTime(0, time);
       g.gain.linearRampToValueAtTime(vol, time + 0.004);
@@ -906,38 +906,50 @@ function startMusic() {
       scheduledNodes.push(osc1, osc2, mod, g, modGain, harmGain);
     }
 
-    /* String-pad voice: two slightly detuned sawtooths through
-       a lowpass filter, slow attack and release. */
-    function playPad(time, freq, dur = 3.5, vol = 0.05) {
+    /* String-pad voice: sawtooth + slight detune, per-note detune amount
+       is passed in so 3 notes in a chord don't sit on top of each other.
+       Brighter filter (3.2 kHz) + faster attack to keep clarity, not mush. */
+    function playPad(time, freq, dur = 2.3, vol = 0.08, detuneCents = 0) {
       const g = audioCtx.createGain();
       g.gain.setValueAtTime(0, time);
-      g.gain.linearRampToValueAtTime(vol, time + 0.35);
-      g.gain.setValueAtTime(vol, time + dur - 0.6);
+      g.gain.linearRampToValueAtTime(vol, time + 0.10);
+      g.gain.setValueAtTime(vol, time + dur - 0.3);
       g.gain.linearRampToValueAtTime(0, time + dur);
 
       const osc1 = audioCtx.createOscillator();
       osc1.type = 'sawtooth';
       osc1.frequency.value = freq;
+      osc1.detune.value = detuneCents;
 
       const osc2 = audioCtx.createOscillator();
       osc2.type = 'sawtooth';
-      osc2.frequency.value = freq * 1.0035;  // slight detune for chorus
+      osc2.frequency.value = freq;
+      osc2.detune.value = detuneCents + 7;  // chorus against osc1
+
+      // Low octave root for body (octave down, quieter)
+      const oscRoot = audioCtx.createOscillator();
+      oscRoot.type = 'triangle';
+      oscRoot.frequency.value = freq * 0.5;
+      const rootGain = audioCtx.createGain();
+      rootGain.gain.value = 0.35;
 
       const filter = audioCtx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.value = 1800;
-      filter.Q.value = 0.6;
+      filter.frequency.value = 3200;  // brighter, less muddy
+      filter.Q.value = 0.5;
 
       osc1.connect(filter);
       osc2.connect(filter);
       filter.connect(g);
+      oscRoot.connect(rootGain);
+      rootGain.connect(g);
 
       g.connect(dryGain);
       g.connect(reverbConvolver);
 
-      osc1.start(time); osc2.start(time);
-      osc1.stop(time + dur + 0.1); osc2.stop(time + dur + 0.1);
-      scheduledNodes.push(osc1, osc2, g, filter);
+      osc1.start(time); osc2.start(time); oscRoot.start(time);
+      osc1.stop(time + dur + 0.1); osc2.stop(time + dur + 0.1); oscRoot.stop(time + dur + 0.1);
+      scheduledNodes.push(osc1, osc2, oscRoot, g, filter, rootGain);
     }
 
     /* Soft bass: triangle wave with quick attack and gentle decay. */
@@ -960,7 +972,9 @@ function startMusic() {
     }
 
     function playChord(time, notes) {
-      notes.forEach(n => playPad(time, midi(n), bar * 0.95, 0.10));
+      // Spread detune (-7, 0, +5 cents) so 3 voices don't fight
+      const detunes = [-7, 0, 5];
+      notes.forEach((n, i) => playPad(time, midi(n), bar * 0.60, 0.13, detunes[i] || 0));
     }
 
     function scheduleLoop() {
@@ -978,10 +992,10 @@ function startMusic() {
             playPiano(tBar + i * beat, midi(mel[i]), beat * 0.5, 0.40);
             // echo second 16th: take melody[i+1] (or wrap to first)
             const next = mel[(i + 1) % mel.length];
-            playPiano(tBar + i * beat + beat * 0.5, midi(next), beat * 0.45, 0.26);
+            playPiano(tBar + i * beat + beat * 0.5, midi(next), beat * 0.45, 0.30);
           }
           // Bass on beat 1 and 3
-          playBass(tBar, midi(chords[b][0] - 12), beat * 2.6, 0.32);
+          playBass(tBar, midi(chords[b][0] - 12), beat * 2.6, 0.38);
           playBass(tBar + beat * 2, midi(chords[b][0] - 12), beat * 1.6, 0.22);
         }
       }
