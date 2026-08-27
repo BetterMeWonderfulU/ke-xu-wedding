@@ -601,7 +601,7 @@
       <div class="label" style="margin-top:30px;">婚 礼 地 点</div>
       <div class="value venue">永昌县御山国际礼宴中心</div>
       <div class="hall">三楼 · 星空厅</div>
-      <a class="loc-link" id="nav-link" href="https://uri.amap.com/navigation?to=永昌县御山国际礼宴中心&mode=car&policy=1&src=wedding&coordinate=gaode&callnative=1" target="_blank" rel="noopener">📍 一键导航（高德）</a>
+      <a class="loc-link" id="nav-link" href="https://uri.amap.com/navigation?to=38.25,101.97,御山国际礼宴中心&mode=car&policy=1&src=ke-xu-wedding&coordinate=gaode&callnative=1" target="_blank" rel="noopener">📍 一键导航（高德）</a>
 
       <div class="label" style="margin-top:30px;">距 离 婚 礼 还 有</div>
       <div class="countdown" id="countdown">
@@ -1001,9 +1001,12 @@ document.addEventListener('visibilitychange', () => {
 (function () {
   const link = document.getElementById('nav-link');
   if (!link) return;
-  const dest = '永昌县御山国际礼宴中心';
-  const navUrl = `https://uri.amap.com/navigation?to=${encodeURIComponent(dest)}&mode=car&policy=1&src=ke-xu-wedding&coordinate=gaode&callnative=1`;
-  const webFallback = `https://uri.amap.com/search?keyword=${encodeURIComponent(dest)}`;
+  const lat = 38.25, lng = 101.97;
+  const name = '御山国际礼宴中心';
+  // 经纬度 + 名称：直接拉起驾车导航路线规划页
+  const navUrl = `https://uri.amap.com/navigation?to=${lat},${lng},${encodeURIComponent(name)}&mode=car&policy=1&src=ke-xu-wedding&coordinate=gaode&callnative=1`;
+  // 兜底：网页高德地图（直接定位到这个点）
+  const webFallback = `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&src=ke-xu-wedding&coordinate=gaode&callnative=1`;
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
