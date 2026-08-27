@@ -601,7 +601,7 @@
       <div class="label" style="margin-top:30px;">婚 礼 地 点</div>
       <div class="value venue">永昌县御山国际礼宴中心</div>
       <div class="hall">三楼 · 星空厅</div>
-      <a class="loc-link" href="https://uri.amap.com/search?keyword=永昌县御山国际礼宴中心" target="_blank" rel="noopener">📍 地图导航</a>
+      <a class="loc-link" id="nav-link" href="https://uri.amap.com/navigation?to=永昌县御山国际礼宴中心&mode=car&policy=1&src=wedding&coordinate=gaode&callnative=1" target="_blank" rel="noopener">📍 一键导航（高德）</a>
 
       <div class="label" style="margin-top:30px;">距 离 婚 礼 还 有</div>
       <div class="countdown" id="countdown">
@@ -991,6 +991,46 @@ btn.addEventListener('click', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && musicPlaying) stopMusic();
 });
+
+/* ===== 一键唤起高德地图导航 =====
+ * 策略：
+ *   1. 移动端：location.href 跳转 uri.amap.com（高德会自己拉起 App，微信场景也能转跳）
+ *   2. 桌面端：直接用网页地图搜索
+ *   3. iOS Safari：用 Universal Link 强制唤起
+ */
+(function () {
+  const link = document.getElementById('nav-link');
+  if (!link) return;
+  const dest = '永昌县御山国际礼宴中心';
+  const navUrl = `https://uri.amap.com/navigation?to=${encodeURIComponent(dest)}&mode=car&policy=1&src=ke-xu-wedding&coordinate=gaode&callnative=1`;
+  const webFallback = `https://uri.amap.com/search?keyword=${encodeURIComponent(dest)}`;
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const isMobile = isIOS || isAndroid || /Mobi|Mobile/i.test(ua);
+
+  // 桌面端：走网页地图
+  if (!isMobile) {
+    link.setAttribute('href', webFallback);
+    link.setAttribute('target', '_blank');
+    return;
+  }
+
+  // 移动端：点击时用 location.href 触发（关键：不能用 target=_blank，会被浏览器拦截唤起）
+  link.setAttribute('target', '_self');
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    const start = Date.now();
+    // 立即跳 - 高德 App 拉起后页面会切走；如果 1.5s 后还在本页，说明没装 App，兜底走网页
+    window.location.href = navUrl;
+    setTimeout(() => {
+      // 如果页面还可见（说明 App 没拉起）
+      if (Date.now() - start < 2200 && document.visibilityState === 'visible') {
+        window.location.href = webFallback;
+      }
+    }, 1500);
+  });
+})();
 </script>
 </body>
 </html>
