@@ -601,7 +601,7 @@
       <div class="label" style="margin-top:30px;">婚 礼 地 点</div>
       <div class="value venue">永昌县御山国际礼宴中心</div>
       <div class="hall">三楼 · 星空厅</div>
-      <a class="loc-link" id="nav-link" href="https://uri.amap.com/navigation?to=38.25,101.97,御山国际礼宴中心&mode=car&policy=1&src=ke-xu-wedding&coordinate=gaode&callnative=1" target="_blank" rel="noopener">📍 一键导航（高德）</a>
+      <a class="loc-link" id="nav-link" href="https://uri.amap.com/marker?position=101.966966,38.247185&name=%E5%BE%A1%E5%B1%B1%E5%9B%BD%E9%99%85%E7%A4%BC%E5%AE%B4%E4%B8%AD%E5%BF%83&src=ke-xu-wedding&coordinate=gaode&callnative=1" target="_blank" rel="noopener">📍 一键导航（高德）</a>
 
       <div class="label" style="margin-top:30px;">距 离 婚 礼 还 有</div>
       <div class="countdown" id="countdown">
@@ -992,44 +992,63 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && musicPlaying) stopMusic();
 });
 
-/* ===== 一键唤起高德地图导航 =====
+/* ===== 一键唤起高德地图导航（直接进入驾车导航页，顶部显示目的地名称） =====
  * 策略：
- *   1. 移动端：location.href 跳转 uri.amap.com（高德会自己拉起 App，微信场景也能转跳）
- *   2. 桌面端：直接用网页地图搜索
- *   3. iOS Safari：用 Universal Link 强制唤起
+ *   1. Android：用 androidamap://navi 原生 scheme（poiname 会在 App 顶部显示）
+ *   2. iOS：用 iosamap://navi 原生 scheme
+ *   3. 兜底：用 https://uri.amap.com/marker（Web URL，会拉起 App 的标记页）
+ *   4. 桌面端：直接用网页高德地图标记点
+ *   5. 都失败时：2s 后兜底走高德网页地图
  */
 (function () {
   const link = document.getElementById('nav-link');
   if (!link) return;
-  const lat = 38.25, lng = 101.97;
+
+  const lat = 38.247185;
+  const lng = 101.966966;
   const name = '御山国际礼宴中心';
-  // 经纬度 + 名称：直接拉起驾车导航路线规划页
-  const navUrl = `https://uri.amap.com/navigation?to=${lat},${lng},${encodeURIComponent(name)}&mode=car&policy=1&src=ke-xu-wedding&coordinate=gaode&callnative=1`;
-  // 兜底：网页高德地图（直接定位到这个点）
-  const webFallback = `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&src=ke-xu-wedding&coordinate=gaode&callnative=1`;
+  const src = 'ke-xu-wedding';
+
+  // 原生 App 导航 URL（poiname 会显示在导航页顶部）
+  const androidScheme = `androidamap://navi?sourceApplication=${src}&poiname=${encodeURIComponent(name)}&lat=${lat}&lon=${lng}&dev=1&style=2`;
+  const iosScheme = `iosamap://navi?sourceApplication=${src}&poiname=${encodeURIComponent(name)}&lat=${lat}&lon=${lng}&dev=1&style=2`;
+
+  // Web 兜底 URL（uri.amap.com 会尝试拉起 App，未装则打开网页）
+  const webMarker = `https://uri.amap.com/marker?position=${lng},${lat}&name=${encodeURIComponent(name)}&src=${src}&coordinate=gaode&callnative=1`;
+
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
   const isMobile = isIOS || isAndroid || /Mobi|Mobile/i.test(ua);
 
-  // 桌面端：走网页地图
+  // 桌面端：走网页地图标记点
   if (!isMobile) {
-    link.setAttribute('href', webFallback);
+    link.setAttribute('href', webMarker);
     link.setAttribute('target', '_blank');
     return;
   }
 
-  // 移动端：点击时用 location.href 触发（关键：不能用 target=_blank，会被浏览器拦截唤起）
+  // 微信内置浏览器：uni-link 会被拦截，统一走 Web URL（高德自己处理唤起）
+  const isWechat = /MicroMessenger/i.test(ua);
+  if (isWechat) {
+    link.setAttribute('href', webMarker);
+    link.setAttribute('target', '_self');
+    return;
+  }
+
+  // 移动端浏览器：点击用原生 scheme 拉起 App
   link.setAttribute('target', '_self');
+  const navScheme = isIOS ? iosScheme : androidScheme;
+
   link.addEventListener('click', (e) => {
     e.preventDefault();
     const start = Date.now();
-    // 立即跳 - 高德 App 拉起后页面会切走；如果 1.5s 后还在本页，说明没装 App，兜底走网页
-    window.location.href = navUrl;
+    // 1) 尝试用原生 scheme 拉起 App
+    window.location.href = navScheme;
+    // 2) 兜底：1.5s 后若页面还可见（App 没拉起），跳到 Web URL
     setTimeout(() => {
-      // 如果页面还可见（说明 App 没拉起）
       if (Date.now() - start < 2200 && document.visibilityState === 'visible') {
-        window.location.href = webFallback;
+        window.location.href = webMarker;
       }
     }, 1500);
   });
