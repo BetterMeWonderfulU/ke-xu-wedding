@@ -767,8 +767,9 @@ document.getElementById('openBtn').addEventListener('click', () => {
 
 /* ============================================================
    Procedural wedding music via Web Audio API
-   Pachelbel's Canon in D — piano arpeggio + string pad + bass,
-   with a soft synthesized reverb. Fully self-contained.
+   Concerto Pour Une Voix (理查德·克莱德曼《爱的协奏曲》) — A minor,
+   piano arpeggio + string pad + soft bass, with a gentle synthesized
+   reverb. Fully self-contained. Inspired by the original.
    ============================================================ */
 let audioCtx = null;
 let musicPlaying = false;
@@ -809,9 +810,9 @@ function startMusic() {
 
     // Reverb send (synthesized impulse)
     reverbConvolver = audioCtx.createConvolver();
-    reverbConvolver.buffer = createReverbIR(audioCtx, 1.8, 2.4);
+    reverbConvolver.buffer = createReverbIR(audioCtx, 2.4, 2.0);
     reverbGain = audioCtx.createGain();
-    reverbGain.gain.value = 0.32;
+    reverbGain.gain.value = 0.42;
     reverbConvolver.connect(reverbGain);
     reverbGain.connect(masterGain);
 
@@ -820,54 +821,69 @@ function startMusic() {
     dryGain.gain.value = 0.72;
     dryGain.connect(masterGain);
 
-    /* === Pachelbel's Canon in D · 4/4 · 72 BPM ===
-       8-bar progression: I – V – vi – iii – IV – I – IV – V */
-    const bpm = 72;
+    /* === Concerto Pour Une Voix · A minor · 4/4 · 78 BPM ===
+       和弦进行：Am – F – C – G  (8 小节重复一次 = 完整段落)
+       高潮处插入 C – G – Am – F 的下行变体 */
+    const bpm = 78;
     const beat = 60 / bpm;
     const bar = beat * 4;
+    // MIDI: A=69, F=65, C=72, G=67
     const chords = [
-      [62, 66, 69],  // D    (I)
-      [69, 73, 76],  // A    (V)
-      [71, 74, 78],  // Bm   (vi)
-      [66, 69, 73],  // F#m  (iii)
-      [67, 71, 74],  // G    (IV)
-      [62, 66, 69],  // D    (I)
-      [67, 71, 74],  // G    (IV)
-      [69, 73, 76],  // A    (V)
+      [69, 72, 76],  // Am   (i)
+      [65, 69, 72],  // F    (VI)
+      [60, 64, 67],  // C    (III)
+      [67, 71, 74],  // G    (VII)
+      [69, 72, 76],  // Am
+      [65, 69, 72],  // F
+      [60, 64, 67],  // C
+      [67, 71, 74],  // G
     ];
-    // Piano arpeggio: one note per beat, in the upper register
+    // 主旋律：上行跳跃 + 6 度大跳（致敬原曲标志动机）
+    // 每小节 4 拍，音型：高-低-高-低，体现跳跃感
+    // 音域：E4(64) – E6(88)
     const melody = [
-      [74, 78, 81, 78],  // over D    (A · D · F# · D)
-      [81, 78, 76, 74],  // over A    (F# · D · A · F#)
-      [78, 74, 71, 74],  // over Bm   (D · F# · B · F#)
-      [73, 69, 66, 69],  // over F#m  (A · C# · F# · C#)
-      [74, 71, 67, 71],  // over G    (D · G · B · G)
-      [74, 78, 81, 78],  // over D
-      [74, 71, 67, 71],  // over G
-      [81, 78, 76, 74],  // over A
+      [76, 72, 76, 81],  // Am   E5·C5·E5·A5
+      [72, 69, 72, 77],  // F    C5·A4·C5·F5
+      [72, 69, 72, 76],  // C    C5·A4·C5·E5
+      [74, 71, 74, 79],  // G    D5·B4·D5·G5
+      [76, 72, 76, 84],  // Am   E5·C5·E5·C6  ← 情绪高点
+      [72, 69, 72, 77],  // F
+      [72, 69, 72, 76],  // C
+      [74, 71, 74, 79],  // G
     ];
 
     // MIDI note number → frequency in Hz
     const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 
-    /* Piano-like voice: sine fundamental + soft 2nd harmonic,
-       short attack and exponential decay. */
+    /* Piano-like voice (FM-ish): sine carrier + 2x-freq modulator for
+       a bell-like shimmer typical of Clayderman piano, plus 2nd
+       harmonic, short attack and exponential decay. */
     function playPiano(time, freq, dur = 1.0, vol = 0.22) {
       const g = audioCtx.createGain();
       g.gain.setValueAtTime(0, time);
-      g.gain.linearRampToValueAtTime(vol, time + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+      g.gain.linearRampToValueAtTime(vol, time + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0008, time + dur);
 
+      // Carrier (sine, the fundamental)
       const osc1 = audioCtx.createOscillator();
       osc1.type = 'sine';
       osc1.frequency.value = freq;
 
+      // FM modulator (sine at 2x freq) — bell-like shimmer
+      const mod = audioCtx.createOscillator();
+      mod.type = 'sine';
+      mod.frequency.value = freq * 2;
+      const modGain = audioCtx.createGain();
+      modGain.gain.value = Math.min(freq * 0.6, 1500);
+      mod.connect(modGain);
+      modGain.connect(osc1.frequency);
+
+      // 2nd harmonic for brightness
       const osc2 = audioCtx.createOscillator();
       osc2.type = 'triangle';
       osc2.frequency.value = freq * 2;
-
       const harmGain = audioCtx.createGain();
-      harmGain.gain.value = 0.12;
+      harmGain.gain.value = 0.10;
 
       osc1.connect(g);
       osc2.connect(harmGain);
@@ -876,9 +892,9 @@ function startMusic() {
       g.connect(dryGain);
       g.connect(reverbConvolver);
 
-      osc1.start(time); osc2.start(time);
-      osc1.stop(time + dur + 0.1); osc2.stop(time + dur + 0.1);
-      scheduledNodes.push(osc1, osc2, g, harmGain);
+      osc1.start(time); osc2.start(time); mod.start(time);
+      osc1.stop(time + dur + 0.1); osc2.stop(time + dur + 0.1); mod.stop(time + dur + 0.1);
+      scheduledNodes.push(osc1, osc2, mod, g, modGain, harmGain);
     }
 
     /* String-pad voice: two slightly detuned sawtooths through
@@ -947,11 +963,14 @@ function startMusic() {
           const tBar = cycleStart + b * bar;
           // Sustained string-pad chord
           playChord(tBar, chords[b]);
-          // Piano arpeggio — one note per beat
+          // Piano arpeggio — 2 notes per beat (16th-note feel, Clayderman signature)
           const mel = melody[b];
-          mel.forEach((note, i) => {
-            playPiano(tBar + i * beat, midi(note), beat * 0.95, 0.22);
-          });
+          for (let i = 0; i < mel.length; i++) {
+            playPiano(tBar + i * beat, midi(mel[i]), beat * 0.5, 0.20);
+            // echo second 16th: take melody[i+1] (or wrap to first)
+            const next = mel[(i + 1) % mel.length];
+            playPiano(tBar + i * beat + beat * 0.5, midi(next), beat * 0.45, 0.14);
+          }
           // Bass on beat 1 and 3
           playBass(tBar, midi(chords[b][0] - 12), beat * 2.6, 0.18);
           playBass(tBar + beat * 2, midi(chords[b][0] - 12), beat * 1.6, 0.14);
