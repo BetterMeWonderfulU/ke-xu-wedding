@@ -802,23 +802,32 @@ function startMusic() {
     audioCtx = audioCtx || new Ctor();
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
+    // Soft limiter to prevent clipping when layered voices peak
+    const limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -8;
+    limiter.knee.value = 8;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.18;
+    limiter.connect(audioCtx.destination);
+
     // Master gain with gentle fade-in
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0;
-    masterGain.connect(audioCtx.destination);
-    masterGain.gain.linearRampToValueAtTime(0.28, audioCtx.currentTime + 2.5);
+    masterGain.connect(limiter);
+    masterGain.gain.linearRampToValueAtTime(0.62, audioCtx.currentTime + 2.5);
 
     // Reverb send (synthesized impulse)
     reverbConvolver = audioCtx.createConvolver();
     reverbConvolver.buffer = createReverbIR(audioCtx, 2.4, 2.0);
     reverbGain = audioCtx.createGain();
-    reverbGain.gain.value = 0.42;
+    reverbGain.gain.value = 0.55;
     reverbConvolver.connect(reverbGain);
     reverbGain.connect(masterGain);
 
     // Dry path
     dryGain = audioCtx.createGain();
-    dryGain.gain.value = 0.72;
+    dryGain.gain.value = 0.85;
     dryGain.connect(masterGain);
 
     /* === Concerto Pour Une Voix · A minor · 4/4 · 78 BPM ===
@@ -858,11 +867,11 @@ function startMusic() {
     /* Piano-like voice (FM-ish): sine carrier + 2x-freq modulator for
        a bell-like shimmer typical of Clayderman piano, plus 2nd
        harmonic, short attack and exponential decay. */
-    function playPiano(time, freq, dur = 1.0, vol = 0.22) {
+    function playPiano(time, freq, dur = 1.4, vol = 0.42) {
       const g = audioCtx.createGain();
       g.gain.setValueAtTime(0, time);
       g.gain.linearRampToValueAtTime(vol, time + 0.004);
-      g.gain.exponentialRampToValueAtTime(0.0008, time + dur);
+      g.gain.exponentialRampToValueAtTime(0.0030, time + dur);
 
       // Carrier (sine, the fundamental)
       const osc1 = audioCtx.createOscillator();
@@ -951,7 +960,7 @@ function startMusic() {
     }
 
     function playChord(time, notes) {
-      notes.forEach(n => playPad(time, midi(n), bar * 0.95, 0.045));
+      notes.forEach(n => playPad(time, midi(n), bar * 0.95, 0.10));
     }
 
     function scheduleLoop() {
@@ -966,14 +975,14 @@ function startMusic() {
           // Piano arpeggio — 2 notes per beat (16th-note feel, Clayderman signature)
           const mel = melody[b];
           for (let i = 0; i < mel.length; i++) {
-            playPiano(tBar + i * beat, midi(mel[i]), beat * 0.5, 0.20);
+            playPiano(tBar + i * beat, midi(mel[i]), beat * 0.5, 0.40);
             // echo second 16th: take melody[i+1] (or wrap to first)
             const next = mel[(i + 1) % mel.length];
-            playPiano(tBar + i * beat + beat * 0.5, midi(next), beat * 0.45, 0.14);
+            playPiano(tBar + i * beat + beat * 0.5, midi(next), beat * 0.45, 0.26);
           }
           // Bass on beat 1 and 3
-          playBass(tBar, midi(chords[b][0] - 12), beat * 2.6, 0.18);
-          playBass(tBar + beat * 2, midi(chords[b][0] - 12), beat * 1.6, 0.14);
+          playBass(tBar, midi(chords[b][0] - 12), beat * 2.6, 0.32);
+          playBass(tBar + beat * 2, midi(chords[b][0] - 12), beat * 1.6, 0.22);
         }
       }
       // Schedule the next loop before the current one ends
