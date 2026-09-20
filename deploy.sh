@@ -46,5 +46,7 @@ fi
 git commit -m "$MSG"
 git push origin main
 echo "   ✓ 已推送：https://bettermewonderfulu.github.io/ke-xu-wedding/"
-echo ""
-echo "☁️  Cloudflare: 请上传 cf-deploy/ 文件夹到 ourwedding → 部署 → 新部署"
+
+echo "☁️  4. 推送 Cloudflare (wrangler) ..."
+npx --yes wrangler deploy
+echo "   ✓ Cloudflare 已更新：https://kechangyu.com/"
